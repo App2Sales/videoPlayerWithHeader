@@ -2,20 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="ac76c2b7-47ca-4f8f-b8a4-102891fe6d33" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Dart_SDK.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Dart_SDK.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/videoPlayerWithheader.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/videoPlayerWithheader.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.packages" beforeDir="false" afterPath="$PROJECT_DIR$/.packages" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/.settings/org.eclipse.buildship.core.prefs" beforeDir="false" afterPath="$PROJECT_DIR$/android/.settings/org.eclipse.buildship.core.prefs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/android/src/main/java/io/flutter/plugins/videoplayer/VideoPlayerPlugin.java" beforeDir="false" afterPath="$PROJECT_DIR$/android/src/main/java/io/flutter/plugins/videoplayer/VideoPlayerPlugin.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/.flutter-plugins" beforeDir="false" afterPath="$PROJECT_DIR$/example/.flutter-plugins" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/.packages" beforeDir="false" afterPath="$PROJECT_DIR$/example/.packages" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/android/.gradle/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/example/android/.gradle/checksums/checksums.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/android/.settings/org.eclipse.buildship.core.prefs" beforeDir="false" afterPath="$PROJECT_DIR$/example/android/.settings/org.eclipse.buildship.core.prefs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/android/local.properties" beforeDir="false" afterPath="$PROJECT_DIR$/example/android/local.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/example/pubspec.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/pubspec.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/video_player_header.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lib/video_player_header.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -104,7 +104,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     private boolean isInitialized = false;
 
     VideoPlayer(Context context, EventChannel eventChannel, TextureRegistry.SurfaceTextureEntry textureEntry,
-        String dataSource, Map<String, String> headers, Result result) {
+        String dataSource, Map<String, String> headers, Result result, boolean encrypted, String password) {
       this.eventChannel = eventChannel;
       this.textureEntry = textureEntry;
 
@@ -116,7 +116,9 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       DataSource.Factory dataSourceFactory;
       if (uri.getScheme().equals("asset") || uri.getScheme().equals("file")) {
         dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
-        dataSourceFactory = new AESCipherDataSourceFactory(dataSourceFactory.createDataSource(), "a_really_strong_password");
+        if(encrypted) {
+          dataSourceFactory = new AESCipherDataSourceFactory(dataSourceFactory.createDataSource(), password);
+        }
       } else {
         dataSourceFactory = new VideoPlayerHttpDataSourceFactory("ExoPlayer", null,
             DefaultHttpDataSource.DEFAULT_CONNECT_TIMEOUT_MILLIS, DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
@@ -327,11 +329,16 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             assetLookupKey = registrar.lookupKeyForAsset((String) call.argument("asset"));
           }
           player = new VideoPlayer(registrar.context(), eventChannel, handle, "asset:///" + assetLookupKey, null,
-              result);
+              result, false, null);
           videoPlayers.put(handle.id(), player);
         } else {
-          player = new VideoPlayer(registrar.context(), eventChannel, handle, (String) call.argument("uri"),
-              (Map<String, String>) call.argument("headers"), result);
+          if(call.argument("password") != null){
+            player = new VideoPlayer(registrar.context(), eventChannel, handle, (String) call.argument("uri"),
+                    (Map<String, String>) call.argument("headers"), result,  call.argument("encrypted"), call.argument("password"));
+          }else {
+            player = new VideoPlayer(registrar.context(), eventChannel, handle, (String) call.argument("uri"),
+                    (Map<String, String>) call.argument("headers"), result, false, null);
+          }
           videoPlayers.put(handle.id(), player);
         }
         break;

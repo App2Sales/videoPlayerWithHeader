@@ -86,7 +86,9 @@ class VideoPlayerValue {
   final Size size;
 
   bool get initialized => duration != null;
+
   bool get hasError => errorDescription != null;
+
   double get aspectRatio => size.width / size.height;
 
   VideoPlayerValue copyWith({
@@ -149,6 +151,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   VideoPlayerController.asset(this.dataSource, {this.package})
       : dataSourceType = DataSourceType.asset,
         headers = null,
+        encrypted = false,
+        password = null,
         super(VideoPlayerValue(duration: null));
 
   /// Constructs a [VideoPlayerController] playing a video from obtained from
@@ -159,19 +163,23 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   VideoPlayerController.network(this.dataSource, {this.headers})
       : dataSourceType = DataSourceType.network,
         package = null,
+        encrypted = false,
+        password = null,
         super(VideoPlayerValue(duration: null));
 
   /// Constructs a [VideoPlayerController] playing a video from a file.
   ///
   /// This will load the file from the file-URI given by:
   /// `'file://${file.path}'`.
-  VideoPlayerController.file(File file)
+  VideoPlayerController.file(File file, {this.encrypted = false, this.password})
       : dataSource = 'file://${file.path}',
         dataSourceType = DataSourceType.file,
         package = null,
         headers = null,
         super(VideoPlayerValue(duration: null));
 
+  final bool encrypted;
+  final String password;
   int _textureId;
   final String dataSource;
   final Map<String, String> headers;
@@ -209,7 +217,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         };
         break;
       case DataSourceType.file:
-        dataSourceDescription = <String, dynamic>{'uri': dataSource};
+        dataSourceDescription = <String, dynamic>{
+          'uri': dataSource,
+          'encrypted': encrypted,
+          'password': password
+        };
     }
     final Map<dynamic, dynamic> response = await _channel.invokeMethod(
       'create',
@@ -595,6 +607,7 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
   VoidCallback listener;
 
   VideoPlayerController get controller => widget.controller;
+
   VideoProgressColors get colors => widget.colors;
 
   @override
