@@ -116,6 +116,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
       DataSource.Factory dataSourceFactory;
       if (uri.getScheme().equals("asset") || uri.getScheme().equals("file")) {
         dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
+        dataSourceFactory = new AESCipherDataSourceFactory(dataSourceFactory.createDataSource(), "a_really_strong_password");
       } else {
         dataSourceFactory = new VideoPlayerHttpDataSourceFactory("ExoPlayer", null,
             DefaultHttpDataSource.DEFAULT_CONNECT_TIMEOUT_MILLIS, DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
