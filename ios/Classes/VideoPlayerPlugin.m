@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 
 #import "VideoPlayerPlugin.h"
+#import "AESCrypt.h"
 #import <AVFoundation/AVFoundation.h>
+#import <MobileCoreServices/MobileCoreServices.h>
 
 int64_t FLTCMTimeToMillis(CMTime time) { return time.value * 1000 / time.timescale; }
 
@@ -26,7 +28,7 @@ int64_t FLTCMTimeToMillis(CMTime time) { return time.value * 1000 / time.timesca
 }
 @end
 
-@interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler>
+@interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler, AVAssetResourceLoaderDelegate>
 @property(readonly, nonatomic) AVPlayer* player;
 @property(readonly, nonatomic) AVPlayerItemVideoOutput* videoOutput;
 @property(readonly, nonatomic) CADisplayLink* displayLink;
@@ -36,13 +38,24 @@ int64_t FLTCMTimeToMillis(CMTime time) { return time.value * 1000 / time.timesca
 @property(nonatomic, readonly) bool isPlaying;
 @property(nonatomic, readonly) bool isLooping;
 @property(nonatomic, readonly) bool isInitialized;
+@property(nonatomic) NSURL* encryptedFileURL;
+@property(nonatomic) NSFileHandle* encryptedFileHandler;
+@property(nonatomic) unsigned long long encryptedSize;
+@property(nonatomic)NSString * decryptPassword;
+@property(nonatomic)NSUInteger  currentOffset;
+@property(nonatomic) NSUInteger  currentBlockIndex;
+@property(nonatomic) NSMutableData * decryptedData;
+
 - (instancetype)initWithURL:(NSURL*)url
                     headers:(NSDictionary*)headers
-               frameUpdater:(FLTFrameUpdater*)frameUpdater;
+               frameUpdater:(FLTFrameUpdater*)frameUpdater
+                  encrypted:(BOOL)encrypted
+                   password:(NSString*)password;
 - (void)play;
 - (void)pause;
 - (void)setIsLooping:(bool)isLooping;
 - (void)updatePlayingState;
+
 @end
 
 static void* timeRangeContext = &timeRangeContext;
@@ -52,14 +65,20 @@ static void* playbackBufferEmptyContext = &playbackBufferEmptyContext;
 static void* playbackBufferFullContext = &playbackBufferFullContext;
 
 @implementation FLTVideoPlayer
-- (instancetype)initWithAsset:(NSString*)asset frameUpdater:(FLTFrameUpdater*)frameUpdater {
+
+- (instancetype)initWithAsset:(NSString*)asset frameUpdater:(FLTFrameUpdater*)frameUpdater
+    encrypted:(BOOL)encrypted
+    password:(NSString*)password {
     NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
-    return [self initWithURL:[NSURL fileURLWithPath:path] headers:nil frameUpdater:frameUpdater];
+    return [self initWithURL:[NSURL fileURLWithPath:path] headers:nil frameUpdater:frameUpdater
+                   encrypted:encrypted password:password];
 }
 
 - (instancetype)initWithURL:(NSURL*)url
                     headers:(NSDictionary*)headers
-               frameUpdater:(FLTFrameUpdater*)frameUpdater {
+               frameUpdater:(FLTFrameUpdater*)frameUpdater
+                  encrypted:(BOOL)encrypted
+                   password:(NSString*)password {
     self = [super init];
     NSAssert(self, @"super init cannot be nil");
     _isInitialized = false;
@@ -67,12 +86,32 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
     _disposed = false;
     
     AVPlayerItem* item;
+    self.encryptedFileURL = [NSURL URLWithString:[@"encryptedfile://" stringByAppendingString:url.path]];
+    
+    
     if (headers) {
         AVURLAsset* asset = [AVURLAsset URLAssetWithURL:url
                                                 options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}];
         item = [AVPlayerItem playerItemWithAsset:asset];
-    } else {
-        item = [AVPlayerItem playerItemWithURL:url];
+    }
+    
+    else {
+        if (encrypted){
+            self.decryptPassword = password;
+            self.encryptedFileHandler = [NSFileHandle fileHandleForReadingFromURL:url error:nil];
+            
+            self.encryptedSize = [[[NSFileManager defaultManager] attributesOfItemAtPath:url.path error:nil] fileSize];
+            
+            self.encryptedFileURL = [NSURL URLWithString:[@"encryptedfile://" stringByAppendingString:url.path]];
+            
+            AVURLAsset *asset = [AVURLAsset assetWithURL: self.encryptedFileURL];
+            [asset.resourceLoader setDelegate:self queue:dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0)];
+            item = [AVPlayerItem playerItemWithAsset:asset];
+        }
+        
+        else{
+            item = [AVPlayerItem playerItemWithURL:url];
+        }
     }
     [item addObserver:self
            forKeyPath:@"loadedTimeRanges"
@@ -142,6 +181,65 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
     [_displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
     _displayLink.paused = YES;
     return self;
+}
+
+/// DELEGATE METHOD IMPLEMENTATION
+
+- (BOOL)resourceLoader:(AVAssetResourceLoader *)resourceLoader shouldWaitForLoadingOfRequestedResource:(AVAssetResourceLoadingRequest *)loadingRequest {
+    NSUInteger chunksize = 64 * 1024; // is the block size
+    //    loadingRequest.contentInformationRequest.contentType = @"video/mp4";
+    loadingRequest.contentInformationRequest.contentType = (__bridge NSString *)kUTTypeMPEG4;
+    // encrypted file size in bytes
+    loadingRequest.contentInformationRequest.contentLength = self.encryptedSize;
+    loadingRequest.contentInformationRequest.byteRangeAccessSupported = YES;
+
+    NSUInteger currentOffset = loadingRequest.dataRequest.currentOffset;
+    NSUInteger offset = (NSUInteger)loadingRequest.dataRequest.requestedOffset;
+    NSUInteger requestedLenght = loadingRequest.dataRequest.requestedLength;
+    BOOL chunkMode = currentOffset != offset;
+    
+    if (chunkMode){
+        if(currentOffset != offset ){
+               currentOffset = offset;
+               NSUInteger requestedBlock = floor(currentOffset/16);
+               if(_currentBlockIndex != requestedBlock){
+                   _currentBlockIndex = requestedBlock;
+                   // Loading other block of data
+                   _decryptedData = [self getDataFromFile:_currentBlockIndex];
+               }
+           }
+           if(currentOffset > chunksize * _currentBlockIndex){
+               offset = currentOffset - chunksize * _currentBlockIndex;
+           } else {
+               offset = 0;
+           }
+           NSUInteger maxLength = [_decryptedData length] - offset;
+           if(loadingRequest.dataRequest.requestedLength < maxLength
+              && loadingRequest.dataRequest.requestedLength <= [_decryptedData length]){
+               maxLength = loadingRequest.dataRequest.requestedLength;
+           }
+           [loadingRequest.dataRequest respondWithData:[_decryptedData subdataWithRange:NSMakeRange(offset, maxLength)]];
+    }
+    
+    else {
+        [loadingRequest.dataRequest respondWithData:[_decryptedData subdataWithRange:NSMakeRange((NSUInteger)loadingRequest.dataRequest.requestedOffset, loadingRequest.dataRequest.requestedLength)]];
+    }
+   
+
+    [loadingRequest finishLoading];
+    return YES;
+
+}
+
+- (NSMutableData *) getDataFromFile:(NSUInteger) index
+{
+    NSUInteger chunkSize = 64 * 1024;
+    if(self.encryptedFileHandler){
+        [self.encryptedFileHandler seekToFileOffset:index*chunkSize];
+        return [NSMutableData
+                dataWithData: [AESCrypt decryptData:[self.encryptedFileHandler readDataOfLength:chunkSize] password:@"1234" chunkSize:chunkSize]];
+    }
+    return nil;
 }
 
 - (void)observeValueForKeyPath:(NSString*)path
@@ -340,6 +438,7 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
         FLTFrameUpdater* frameUpdater = [[FLTFrameUpdater alloc] initWithRegistry:_registry];
         NSString* dataSource = argsMap[@"asset"];
         FLTVideoPlayer* player;
+        
         if (dataSource) {
             NSString* assetPath;
             NSString* package = argsMap[@"package"];
@@ -348,13 +447,20 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
             } else {
                 assetPath = [_registrar lookupKeyForAsset:dataSource];
             }
-            player = [[FLTVideoPlayer alloc] initWithAsset:assetPath frameUpdater:frameUpdater];
+            
+            player = [[FLTVideoPlayer alloc] initWithAsset:assetPath frameUpdater:frameUpdater
+                      encrypted:argsMap[@"encrypted"]
+                      password:argsMap[@"password"]];
         } else {
             dataSource = argsMap[@"uri"];
             NSDictionary* headers = argsMap[@"headers"];
+            
             player = [[FLTVideoPlayer alloc] initWithURL:[NSURL URLWithString:dataSource]
                                                  headers:headers
-                                            frameUpdater:frameUpdater];
+                                            frameUpdater:frameUpdater
+                                               encrypted:argsMap[@"encrypted"]
+                                                password:argsMap[@"password"]
+                      ];
         }
         int64_t textureId = [_registry registerTexture:player];
         frameUpdater.textureId = textureId;
@@ -366,7 +472,9 @@ static void* playbackBufferFullContext = &playbackBufferFullContext;
         player.eventChannel = eventChannel;
         _players[@(textureId)] = player;
         result(@{@"textureId" : @(textureId)});
-    } else {
+    }
+    
+    else {
         NSDictionary* argsMap = call.arguments;
         int64_t textureId = ((NSNumber*)argsMap[@"textureId"]).unsignedIntegerValue;
         FLTVideoPlayer* player = _players[@(textureId)];

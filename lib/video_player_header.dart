@@ -148,11 +148,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   /// The name of the asset is given by the [dataSource] argument and must not be
   /// null. The [package] argument must be non-null when the asset comes from a
   /// package and null otherwise.
-  VideoPlayerController.asset(this.dataSource, {this.package})
+  VideoPlayerController.asset(this.dataSource,
+      {this.package, this.encrypted = false, this.password})
       : dataSourceType = DataSourceType.asset,
         headers = null,
-        encrypted = false,
-        password = null,
         super(VideoPlayerValue(duration: null));
 
   /// Constructs a [VideoPlayerController] playing a video from obtained from
@@ -207,7 +206,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       case DataSourceType.asset:
         dataSourceDescription = <String, dynamic>{
           'asset': dataSource,
-          'package': package
+          'package': package,
+          'encrypted': encrypted,
+          'password': password,
         };
         break;
       case DataSourceType.network:
